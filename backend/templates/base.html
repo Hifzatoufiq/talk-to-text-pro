@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% block title %}TalkToTextPro{% endblock %}</title>
+  <meta name="theme-color" content="#0a0a0a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Ubuntu,Cantarell,Arial}
+  </style>
+</head>
+<body class="h-full bg-zinc-950 text-zinc-100 relative overflow-x-hidden" data-logged-in="{{ '1' if session.get('user_id') else '0' }}">
+  <!-- soft gradient blobs (pure Tailwind + inline styles) -->
+  <div class="pointer-events-none absolute -top-28 -left-28 w-[520px] h-[520px] rounded-full blur-3xl opacity-40 z-[-1]" style="background:radial-gradient(40% 40% at 50% 50%, rgba(79,70,229,.45), transparent 70%);"></div>
+  <div class="pointer-events-none absolute -bottom-28 -right-28 w-[520px] h-[520px] rounded-full blur-3xl opacity-40 z-[-1]" style="background:radial-gradient(40% 40% at 50% 50%, rgba(14,165,233,.45), transparent 70%);"></div>
+  <div class="pointer-events-none absolute inset-x-0 top-0 h-56 z-[-1]" style="background:
+    radial-gradient(600px 200px at 20% -10%, rgba(99,102,241,.25), transparent 60%),
+    radial-gradient(600px 200px at 80% -10%, rgba(14,165,233,.25), transparent 60%);"></div>
+
+  <!-- Navbar -->
+  <header class="sticky top-0 z-50 border-b border-white/5 bg-zinc-950/70 backdrop-blur-xl">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="h-16 flex items-center justify-between">
+        <a class="flex items-center gap-2 group" href="{{ url_for('index') }}">
+          <span class="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-sky-500 shadow-lg shadow-indigo-500/20 grid place-items-center">🎙️</span>
+          <span class="font-extrabold tracking-tight text-white group-hover:text-indigo-300 transition">TalkToTextPro</span>
+        </a>
+
+        <!-- Desktop nav -->
+        <nav class="hidden md:flex items-center gap-6">
+          <div class="relative">
+            <button id="featuresBtn" class="text-zinc-300 hover:text-white transition flex items-center gap-1">
+              Features
+              <svg width="16" height="16" fill="none" class="opacity-70"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <div id="featuresMenu" class="absolute right-0 mt-2 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl shadow-black/50 p-2 hidden">
+              <a class="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-zinc-800 transition" href="{{ url_for('index') }}#meeting">
+                <span class="text-indigo-400">📝</span> <span>Meeting Notes</span>
+              </a>
+              <a class="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-zinc-800 transition" href="{{ url_for('translator') }}">
+                <span class="text-sky-400">🌍</span> <span>Translator & Converters</span>
+              </a>
+            </div>
+          </div>
+
+          <a href="{{ url_for('about') }}" class="text-zinc-300 hover:text-white transition">About</a>
+
+          {% if session.get('user_id') %}
+            <span class="text-sm text-zinc-400">Hi, {{ session.get('user_name') or 'User' }}</span>
+            <a href="{{ url_for('logout') }}" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 transition">Logout</a>
+          {% else %}
+            <a href="{{ url_for('login') }}" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 transition">Login</a>
+            <a href="{{ url_for('register') }}" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:from-indigo-500 hover:to-purple-500 transition">Register</a>
+          {% endif %}
+        </nav>
+
+        <!-- Mobile -->
+        <button id="menuOpen" class="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/5 hover:bg-white/10">
+          <span class="sr-only">Open menu</span>
+          <svg width="22" height="22" fill="none"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile drawer -->
+    <div id="mobileMenu" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-black/60"></div>
+      <div class="absolute right-0 top-0 h-full w-[84%] max-w-sm bg-zinc-950 border-l border-zinc-800 p-5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-sky-500 grid place-items-center">🎙️</span>
+            <span class="font-bold">TalkToTextPro</span>
+          </div>
+          <button id="menuClose" class="h-10 w-10 grid place-items-center rounded-lg bg-white/5 hover:bg-white/10">
+            <svg width="22" height="22" fill="none"><path d="M6 6l10 10M16 6L6 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <div class="mt-6 space-y-2">
+          <a class="block rounded-lg px-3 py-2 bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-zinc-200" href="{{ url_for('index') }}#meeting">📝 Meeting Notes</a>
+          <a class="block rounded-lg px-3 py-2 bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-zinc-200" href="{{ url_for('translator') }}">🌍 Translator & Converters</a>
+          <a class="block rounded-lg px-3 py-2 bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-zinc-200" href="{{ url_for('about') }}">📌 About</a>
+          <div class="pt-3 border-t border-zinc-800"></div>
+          {% if session.get('user_id') %}
+            <div class="text-sm text-zinc-400 mb-1">Hi, {{ session.get('user_name') or 'User' }}</div>
+            <a class="block rounded-lg px-3 py-2 bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-zinc-200" href="{{ url_for('logout') }}">Logout</a>
+          {% else %}
+            <a class="block rounded-lg px-3 py-2 bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-zinc-200" href="{{ url_for('login') }}">Login</a>
+            <a class="block rounded-lg px-3 py-2 bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-zinc-200" href="{{ url_for('register') }}">Register</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Flash -->
+  <div class="max-w-3xl mx-auto px-4 mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="space-y-2">
+          {% for category, message in messages %}
+            <div class="rounded-xl border p-3
+                        {% if category == 'error' %}border-rose-500/30 bg-rose-500/10 text-rose-200
+                        {% elif category == 'success' %}border-emerald-500/30 bg-emerald-500/10 text-emerald-200
+                        {% elif category == 'warning' %}border-amber-500/30 bg-amber-500/10 text-amber-200
+                        {% else %}border-zinc-700 bg-zinc-900 text-zinc-200{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <!-- Main -->
+  <main class="max-w-7xl mx-auto px-4 py-10">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 pt-10 pb-12">
+    <div class="max-w-7xl mx-auto px-4 grid md:grid-cols-3 gap-8">
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-sky-500 grid place-items-center">🎙️</span>
+          <span class="font-extrabold">TalkToTextPro</span>
+        </div>
+        <p class="text-zinc-400 text-sm">Elegant AI tools for meetings, translation and file conversion.</p>
+      </div>
+      <div class="text-sm">
+        <div class="font-semibold text-zinc-200 mb-3">Explore</div>
+        <ul class="space-y-1 text-zinc-400">
+          <li><a class="hover:text-zinc-200" href="{{ url_for('index') }}#meeting">Meeting Notes</a></li>
+          <li><a class="hover:text-zinc-200" href="{{ url_for('translator') }}">Translator & Converters</a></li>
+          <li><a class="hover:text-zinc-200" href="{{ url_for('about') }}">About</a></li>
+        </ul>
+      </div>
+      <div class="text-sm">
+        <div class="font-semibold text-zinc-200 mb-3">Account</div>
+        <ul class="space-y-1 text-zinc-400">
+          {% if session.get('user_id') %}
+            <li><span>Signed in as {{ session.get('user_email') }}</span></li>
+            <li><a class="hover:text-zinc-200" href="{{ url_for('logout') }}">Logout</a></li>
+          {% else %}
+            <li><a class="hover:text-zinc-200" href="{{ url_for('login') }}">Login</a></li>
+            <li><a class="hover:text-zinc-200" href="{{ url_for('register') }}">Register</a></li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+    <div class="max-w-7xl mx-auto px-4 mt-8 text-zinc-500 text-xs">© 2025 TalkToTextPro. All rights reserved.</div>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+</body>
+</html>

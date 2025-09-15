@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}About{% endblock %}
+{% block content %}
+<section class="bg-zinc-900/60 border border-zinc-800 rounded-3xl p-6 shadow-xl shadow-black/30">
+  <h1 class="text-3xl font-extrabold">About TalkToTextPro</h1>
+  <p class="text-zinc-400 mt-2 max-w-3xl">
+    TalkToTextPro is built for teams and creators who need reliable, beautiful tools:
+    record & summarize meetings, translate content, and convert documents — with precision and speed.
+  </p>
+
+  <div class="grid md:grid-cols-3 gap-5 mt-8">
+    <div class="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div class="h-10 w-10 rounded-xl grid place-items-center text-lg bg-indigo-500/15 text-indigo-300">🎧</div>
+      <div>
+        <h3 class="font-semibold">Meeting Notes</h3>
+        <p class="text-zinc-400 text-sm">Upload/record audio and get structured notes: summary, key points, decisions, action items.</p>
+      </div>
+    </div>
+    <div class="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div class="h-10 w-10 rounded-xl grid place-items-center text-lg bg-sky-500/15 text-sky-300">🌍</div>
+      <div>
+        <h3 class="font-semibold">Translator</h3>
+        <p class="text-zinc-400 text-sm">Translate text and scanned PDFs with clarity and tone preservation.</p>
+      </div>
+    </div>
+    <div class="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div class="h-10 w-10 rounded-xl grid place-items-center text-lg bg-emerald-500/15 text-emerald-300">🧰</div>
+      <div>
+        <h3 class="font-semibold">Converters</h3>
+        <p class="text-zinc-400 text-sm">PDF↔DOCX and Image→PDF conversions that just work.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-10">
+    <h2 class="text-xl font-extrabold">Journey</h2>
+    <ol class="relative border-l border-zinc-800 ml-3 mt-3 space-y-6">
+      <li class="relative">
+        <span class="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-indigo-500"></span>
+        <div class="ml-6">
+          <h4 class="font-semibold">2025 — Public Release</h4>
+          <p class="text-zinc-400 text-sm">First polished release with dark UI, improved recording & translation UX.</p>
+        </div>
+      </li>
+      <li class="relative">
+        <span class="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-indigo-500"></span>
+        <div class="ml-6">
+          <h4 class="font-semibold">2024 — Prototype</h4>
+          <p class="text-zinc-400 text-sm">Early prototype combining ASR, LLM summaries, and PDF OCR.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+{% endblock %}

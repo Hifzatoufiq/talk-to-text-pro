@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="min-h-[70vh] grid place-items-center">
+  <div class="w-full max-w-md bg-zinc-900/60 border border-zinc-800 rounded-3xl p-6 shadow-xl shadow-black/30">
+    <h1 class="text-2xl font-extrabold tracking-tight">Welcome back</h1>
+    <p class="text-zinc-400 mt-1">Sign in to access Meeting Notes.</p>
+    <form method="post" class="space-y-4 mt-6">
+      <div>
+        <label class="block text-sm text-zinc-400 mb-1">Email</label>
+        <input name="email" type="email" class="w-full rounded-xl bg-zinc-950 border border-zinc-800 p-3 text-zinc-100" required>
+      </div>
+      <div>
+        <label class="block text-sm text-zinc-400 mb-1">Password</label>
+        <input name="password" type="password" class="w-full rounded-xl bg-zinc-950 border border-zinc-800 p-3 text-zinc-100" required>
+      </div>
+      <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-500 hover:to-purple-500 transition">Login</button>
+    </form>
+    <p class="text-sm text-zinc-400 mt-4">No account? <a class="text-indigo-400 hover:text-indigo-300" href="{{ url_for('register') }}">Register</a></p>
+  </div>
+</div>
+{% endblock %}

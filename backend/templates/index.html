@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Home — TalkToTextPro{% endblock %}
+{% block content %}
+<!-- Hero -->
+<section class="relative rounded-3xl border border-white/5 overflow-hidden bg-gradient-to-b from-white/[0.02] to-transparent p-8">
+  <div class="max-w-3xl">
+    <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight">
+      Turn conversations into <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-sky-400">actionable notes</span>.
+    </h1>
+    <p class="mt-4 text-zinc-400">
+      Record or upload meetings, get crystal summaries. Translate & convert documents in seconds — all in a sleek dark UI.
+    </p>
+    <div class="mt-6 flex flex-wrap gap-3">
+      <a href="#meeting" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:from-indigo-500 hover:to-purple-500 transition">Start Meeting Notes</a>
+      <a href="{{ url_for('translator') }}" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 transition">Open Translator & Tools</a>
+    </div>
+  </div>
+  <div class="absolute right-[-8rem] top-[-4rem] w-[28rem] h-[28rem] rounded-full blur-3xl opacity-40 pointer-events-none" style="background:conic-gradient(from 180deg at 50% 50%, rgba(99,102,241,.25), rgba(14,165,233,.25), rgba(236,72,153,.25), rgba(99,102,241,.25));"></div>
+</section>
+
+<!-- Two-up -->
+<section class="grid lg:grid-cols-2 gap-6 mt-8 items-start">
+  <div id="meeting" class="bg-zinc-900/60 border border-zinc-800 rounded-3xl p-6 shadow-xl shadow-black/30">
+    <h2 class="text-xl font-extrabold">Upload audio/video or record (mic / tab)</h2>
+
+    {% if not session.get('user_id') %}
+      <div class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 p-3">Meeting Notes require login. Please login or register.</div>
+    {% endif %}
+
+    <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="space-y-3 mt-4">
+      <input type="file" name="audio" class="w-full rounded-xl bg-zinc-950 border border-zinc-800 p-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-600/40" required {% if not session.get('user_id') %}disabled{% endif %} />
+      <select name="language" id="languageSelect" class="w-full rounded-xl bg-zinc-950 border border-zinc-800 p-3 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-600/40" {% if not session.get('user_id') %}disabled{% endif %}>
+        <option value="auto">Auto detect</option>
+        <option value="en">English</option>
+        <option value="ur">Urdu</option>
+        <option value="hi">Hindi</option>
+      </select>
+      <button type="submit" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold shadow-lg shadow-indigo-500/20 hover:from-indigo-500 hover:to-purple-500 transition w-full md:w-auto {% if not session.get('user_id') %}opacity-50 cursor-not-allowed{% endif %}" {% if not session.get('user_id') %}disabled{% endif %}>
+        Upload & Generate Notes
+      </button>
+    </form>
+
+    <hr class="my-5 border-zinc-800" />
+
+    <div class="mb-5">
+      <h3 class="font-semibold mb-2">Mic recording</h3>
+      <div class="flex gap-2">
+        <button id="micStart" class="inline-flex items-center px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition {% if not session.get('user_id') %}opacity-50 cursor-not-allowed{% endif %}" {% if not session.get('user_id') %}disabled{% endif %}>Start Mic</button>
+        <button id="micStop" class="inline-flex items-center px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-500 transition hidden">Stop Mic</button>
+      </div>
+      <p id="micStatus" class="text-zinc-400 mt-2"></p>
+    </div>
+
+    <div>
+      <h3 class="font-semibold mb-2">Tab / System recording</h3>
+      <div class="flex gap-2">
+        <button id="tabStart" class="inline-flex items-center px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition {% if not session.get('user_id') %}opacity-50 cursor-not-allowed{% endif %}" {% if not session.get('user_id') %}disabled{% endif %}>Start Tab/System</button>
+        <button id="tabStop" class="inline-flex items-center px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-500 transition hidden">Stop Tab/System</button>
+      </div>
+      <p id="tabStatus" class="text-zinc-400 mt-2"></p>
+    </div>
+  </div>
+
+  <div class="bg-zinc-900/60 border border-zinc-800 rounded-3xl p-6 shadow-xl shadow-black/30">
+    <h2 class="text-xl font-extrabold">Translator & File Tools</h2>
+    <p class="text-zinc-400 mb-4">Use the public tools without login.</p>
+    <a href="{{ url_for('translator') }}" class="inline-flex items-center px-4 py-2 rounded-xl bg-sky-600 text-white hover:bg-sky-500 transition">Open Translator & Tools</a>
+
+    <div class="grid grid-cols-2 gap-4 mt-6">
+      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-zinc-300 hover:border-white/20 hover:bg-white/[0.06] transition">🌍 Translate</div>
+      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-zinc-300 hover:border-white/20 hover:bg-white/[0.06] transition">📄 PDF → DOCX</div>
+      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-zinc-300 hover:border-white/20 hover:bg-white/[0.06] transition">📑 DOCX → PDF</div>
+      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-zinc-300 hover:border-white/20 hover:bg-white/[0.06] transition">🖼️ Image → PDF</div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+  <div class="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div class="h-10 w-10 rounded-xl grid place-items-center text-lg" style="background:rgba(99,102,241,.15);color:#c7c9ff">🎧</div>
+    <div>
+      <h3 class="font-semibold">One-click capture</h3>
+      <p class="text-zinc-400 text-sm">Upload or record audio from mic or any tab/window.</p>
+    </div>
+  </div>
+  <div class="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div class="h-10 w-10 rounded-xl grid place-items-center text-lg" style="background:rgba(147,51,234,.15);color:#e4c8ff">🧠</div>
+    <div>
+      <h3 class="font-semibold">Smart summaries</h3>
+      <p class="text-zinc-400 text-sm">Concise executive summaries, action items & more.</p>
+    </div>
+  </div>
+  <div class="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div class="h-10 w-10 rounded-xl grid place-items-center text-lg" style="background:rgba(56,189,248,.15);color:#c9f1ff">🌍</div>
+    <div>
+      <h3 class="font-semibold">Instant translation</h3>
+      <p class="text-zinc-400 text-sm">Translate text or scanned PDFs in seconds.</p>
+    </div>
+  </div>
+  <div class="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div class="h-10 w-10 rounded-xl grid place-items-center text-lg" style="background:rgba(16,185,129,.15);color:#c9ffe7">🧰</div>
+    <div>
+      <h3 class="font-semibold">Handy converters</h3>
+      <p class="text-zinc-400 text-sm">PDF↔DOCX & image→PDF — fast and reliable.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}
