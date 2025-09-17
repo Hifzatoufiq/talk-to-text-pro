@@ -7,7 +7,18 @@
       <h1 class="text-2xl font-extrabold">📝 Meeting Notes</h1>
       <p class="text-zinc-400 mt-1">File: <span class="text-zinc-200">{{ result.filename }}</span> · Language: <span class="text-zinc-200">{{ result.language }}</span></p>
     </div>
-    <a href="{{ url_for('index') }}" class="inline-flex items-center px-4 py-2 rounded-xl bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 transition">← Back</a>
+
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('download_note', note_id=result._id, format='txt') }}"
+         class="inline-flex items-center px-4 py-2 rounded-xl bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 transition">
+        Download TXT
+      </a>
+      <a href="{{ url_for('download_note', note_id=result._id, format='docx') }}"
+         class="inline-flex items-center px-4 py-2 rounded-xl bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 transition">
+        Download DOCX
+      </a>
+      <a href="{{ url_for('index') }}" class="inline-flex items-center px-4 py-2 rounded-xl bg-white/5 text-zinc-100 border border-white/10 hover:bg-white/10 transition">← Back</a>
+    </div>
   </div>
 
   <div class="mt-6 grid md:grid-cols-2 gap-6">
@@ -31,7 +42,7 @@
       <h3 class="text-sm uppercase tracking-wide text-zinc-400">Action items</h3>
       <ul class="list-disc pl-6 mt-2 text-zinc-200">
         {% for a in result.summary.action_items %}
-          <li>{{ a.task }} - {{ a.owner }} {% if a.due %}(Due: {{ a.due }}){% endif %}</li>
+          <li>{{ a.task }}{% if a.owner %} — {{ a.owner }}{% endif %}{% if a.due %} (Due: {{ a.due }}){% endif %}</li>
         {% else %}
           <li class="text-zinc-500">No action items found.</li>
         {% endfor %}
