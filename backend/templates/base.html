@@ -14,7 +14,7 @@
   </style>
 </head>
 <body class="h-full bg-zinc-950 text-zinc-100 relative overflow-x-hidden" data-logged-in="{{ '1' if session.get('user_id') else '0' }}">
-  <!-- soft gradient blobs (pure Tailwind + inline styles) -->
+  <!-- gradient blobs -->
   <div class="pointer-events-none absolute -top-28 -left-28 w-[520px] h-[520px] rounded-full blur-3xl opacity-40 z-[-1]" style="background:radial-gradient(40% 40% at 50% 50%, rgba(79,70,229,.45), transparent 70%);"></div>
   <div class="pointer-events-none absolute -bottom-28 -right-28 w-[520px] h-[520px] rounded-full blur-3xl opacity-40 z-[-1]" style="background:radial-gradient(40% 40% at 50% 50%, rgba(14,165,233,.45), transparent 70%);"></div>
   <div class="pointer-events-none absolute inset-x-0 top-0 h-56 z-[-1]" style="background:
@@ -41,6 +41,7 @@
               <a class="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-zinc-800 transition" href="{{ url_for('index') }}#meeting">
                 <span class="text-indigo-400">📝</span> <span>Meeting Notes</span>
               </a>
+              <!-- IMPORTANT: This link requires an endpoint named 'translator' -->
               <a class="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-zinc-800 transition" href="{{ url_for('translator') }}">
                 <span class="text-sky-400">🌍</span> <span>Translator & Converters</span>
               </a>
