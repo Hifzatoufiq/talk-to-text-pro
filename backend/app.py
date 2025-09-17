@@ -2,6 +2,7 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from functools import wraps
+from io import BytesIO
 
 from flask import (
     Flask, request, render_template, redirect, url_for,
@@ -13,26 +14,28 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from pymongo import MongoClient
 from bson import ObjectId
 
-# TalkToTextPro core
+# Core utils
 from utils.audio_processing import extract_audio_from_file, transcribe_audio, summarize_text
 
 # OpenAI (for Translator)
 from openai import OpenAI
 
-# OCR / PDF / DOCX utils (GeoSpeak-like features)
+# OCR / PDF / DOCX utils
 import fitz  # PyMuPDF
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageOps  # ImageOps for simple preprocessing
 from docx import Document
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
 # OPTIONAL (Windows): set Tesseract installed path; comment out on mac/linux
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+import platform
+if platform.system() == "Windows":
+    default_tess = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    if os.path.exists(default_tess):
+        pytesseract.pytesseract.tesseract_cmd = default_tess
 
-# -------------------------------------------------------
-# Absolute paths (templates/static inside /backend)
-# -------------------------------------------------------
+# ---------------- Paths ----------------
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -44,27 +47,22 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["SECRET_KEY"] = "devsecret"
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# -------------------------------------------------------
-# MongoDB
-# -------------------------------------------------------
+# ---------------- Mongo ----------------
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 client = MongoClient(MONGO_URI)
 db = client["talktodb"]
-
 users_collection         = db["users"]
 notes_collection         = db["notes"]
 translations_collection  = db["translations"]
 conversions_collection   = db["conversions"]
 
-# -------------------------------------------------------
-# OpenAI (HARDCODED KEY, per your request)
-# -------------------------------------------------------
-OPENAI_API_KEY = ""
+# ---------------- OpenAI ----------------
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY_PUBLIC") or ""
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY is not set. Please set it in the environment or .env.")
 oai = OpenAI(api_key=OPENAI_API_KEY)
 
-# -------------------------------------------------------
-# Helpers
-# -------------------------------------------------------
+# ---------------- Helpers ----------------
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -77,22 +75,74 @@ def login_required(view_fn):
         return view_fn(*args, **kwargs)
     return wrapper
 
-# PDF text extraction with OCR fallback
-def extract_pdf_text(file_path: str) -> str:
-    text = ""
-    pdf_document = fitz.open(file_path)
-    for page_num in range(len(pdf_document)):
-        page = pdf_document[page_num]
-        page_text = page.get_text()
-        if not page_text.strip():  # OCR if page is scanned
-            pix = page.get_pixmap()
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            page_text = pytesseract.image_to_string(img)
-        text += page_text + "\n"
-    return text
+def _pick_ocr_langs() -> str:
+    """
+    Decide which OCR languages to use:
+    - If env TESS_LANG is set, use that.
+    - Else pick from installed langs (eng/urd/hin/ara if available).
+    - Always fall back to 'eng' to avoid Tesseract errors.
+    """
+    env_langs = (os.getenv("TESS_LANG") or "").strip()
+    if env_langs:
+        return env_langs
 
-# Simple translator via OpenAI chat
+    try:
+        available = set(pytesseract.get_languages(config=""))
+    except Exception:
+        available = {"eng"}
+
+    # prefer these if installed (order matters)
+    preferred = ["eng", "urd", "hin", "ara"]
+    chosen = [l for l in preferred if l in available]
+    if not chosen:
+        chosen = ["eng"]
+    # make a unique "+"-joined list preserving order
+    seen = {}
+    return "+".join([seen.setdefault(x, x) for x in chosen if x not in seen])
+
+def extract_pdf_text(file_path: str) -> str:
+    """
+    Robust PDF text extraction with high-DPI OCR fallback.
+    1) Try the embedded text layer.
+    2) If empty (scanned/screenshot page), render at ~250 DPI and OCR.
+    3) Light preprocessing (grayscale + autocontrast) for better OCR.
+    """
+    text_chunks = []
+    doc = fitz.open(file_path)
+    ocr_langs = _pick_ocr_langs()  # e.g., "eng+urd+hin"
+
+    for page in doc:
+        # Try embedded text first
+        page_text = page.get_text("text").strip()
+        if page_text:
+            text_chunks.append(page_text)
+            continue
+
+        # OCR fallback for image-only pages
+        try:
+            zoom = 3.5  # 72 * 3.5 ≈ 252 DPI
+            mat = fitz.Matrix(zoom, zoom)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            gray = ImageOps.grayscale(img)
+            gray = ImageOps.autocontrast(gray)
+
+            # PSM 6: Assume a single uniform block of text
+            ocr_text = pytesseract.image_to_string(gray, lang=ocr_langs, config="--psm 6").strip()
+        except Exception:
+            ocr_text = ""
+
+        text_chunks.append(ocr_text)
+
+    doc.close()
+    # Join non-empty chunks only
+    return "\n\n".join([t for t in text_chunks if t]).strip()
+
 def translate_with_openai(text: str, target_language: str) -> str:
+    """
+    Simple translator via OpenAI chat.
+    """
     if not text.strip():
         return ""
     prompt = f"Translate the following text to {target_language}. Keep meaning, tone, and formatting.\n\n{text}"
@@ -106,21 +156,16 @@ def translate_with_openai(text: str, target_language: str) -> str:
     )
     return (resp.choices[0].message.content if resp.choices else "") or ""
 
-# -------------------------------------------------------
-# Routes: Public pages
-# -------------------------------------------------------
+# ---------------- Public pages ----------------
 @app.route("/")
 def index():
-    # Home page (beautiful Tailwind UI)
     return render_template("index.html")
 
 @app.route("/about")
 def about():
     return render_template("about.html")
 
-# -------------------------------------------------------
-# Auth
-# -------------------------------------------------------
+# ---------------- Auth ----------------
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
@@ -132,7 +177,6 @@ def register():
             flash("All fields are required.", "error")
             return redirect(url_for("register"))
 
-        # ensure unique email
         if users_collection.find_one({"email": email}):
             flash("Email already registered. Please login.", "warning")
             return redirect(url_for("login"))
@@ -144,7 +188,6 @@ def register():
             "created_at": datetime.now(timezone.utc),
         })
 
-        # auto-login
         user = users_collection.find_one({"email": email})
         session["user_id"] = str(user["_id"])
         session["user_name"] = user.get("name")
@@ -181,12 +224,15 @@ def logout():
     flash("Logged out.", "success")
     return redirect(url_for("index"))
 
-# -------------------------------------------------------
-# Meeting Notes (login required)
-# -------------------------------------------------------
+# ---------------- Meeting Notes ----------------
 @app.route("/upload", methods=["POST"])
 @login_required
 def upload():
+    """
+    Upload audio/video and generate notes.
+    If user selected Auto, summarize in English.
+    If user selected a specific language, summarize in that language.
+    """
     if "audio" not in request.files:
         flash("No audio file part", "error")
         return redirect(url_for("index"))
@@ -209,11 +255,15 @@ def upload():
 
     try:
         audio_path = extract_audio_from_file(save_path)
-        transcript = transcribe_audio(audio_path, language)
+
+        # Transcribe (auto-detect if language == auto)
+        transcript = transcribe_audio(audio_path, language=language)
         if not transcript:
             transcript = "⚠️ Transcription failed or empty."
 
-        summary = summarize_text(transcript, target_language=language)
+        # Summarize: Auto -> English, else chosen language
+        summary_lang = "en" if language.lower() == "auto" else language
+        summary = summarize_text(transcript, target_language=summary_lang)
         if not summary:
             summary = {
                 "executive_summary": "⚠️ Failed to generate summary",
@@ -244,6 +294,10 @@ def upload():
 @app.route("/record", methods=["POST"])
 @login_required
 def record():
+    """
+    Record from mic/tab and generate notes.
+    Respect dropdown: Auto => English notes, others => selected language.
+    """
     if "audio" not in request.files:
         return jsonify({"error": "No audio data received"}), 400
 
@@ -257,11 +311,13 @@ def record():
 
     try:
         audio_path = extract_audio_from_file(temp_path)
+
         transcript = transcribe_audio(audio_path, language=language)
         if not transcript:
             transcript = "⚠️ Transcription failed or empty."
 
-        summary = summarize_text(transcript, target_language=language)
+        summary_lang = "en" if language.lower() == "auto" else language
+        summary = summarize_text(transcript, target_language=summary_lang)
         if not summary:
             summary = {
                 "executive_summary": "⚠️ Failed to generate summary",
@@ -295,7 +351,6 @@ def view_note(note_id):
         doc = notes_collection.find_one({"_id": ObjectId(note_id)})
         if not doc:
             return "Note not found", 404
-        # ownership check
         if doc.get("owner_id") and doc["owner_id"] != session.get("user_id"):
             return "Forbidden", 403
 
@@ -304,11 +359,124 @@ def view_note(note_id):
     except Exception as e:
         return f"Error: {e}", 500
 
-# -------------------------------------------------------
-# Translator & Converters (Public)
-# -------------------------------------------------------
+# ---------------- Download Notes (TXT / DOCX) ----------------
+def _build_docx_from_note(note) -> BytesIO:
+    """
+    Create a DOCX in-memory from a note document and return a BytesIO stream.
+    """
+    bio = BytesIO()
+    d = Document()
+
+    d.add_heading("Meeting Notes", 0)
+    d.add_paragraph(f"File: {note.get('filename','')}")
+    d.add_paragraph(f"Language: {note.get('language','')}")
+    d.add_paragraph(f"Created: {note.get('created_at','')}")
+    d.add_paragraph("")
+
+    s = note.get("summary", {}) or {}
+
+    d.add_heading("Executive Summary", level=1)
+    d.add_paragraph(s.get("executive_summary","") or "")
+
+    d.add_heading("Key Points", level=1)
+    for p in (s.get("key_points") or []):
+        d.add_paragraph(p, style="List Bullet")
+
+    d.add_heading("Action Items", level=1)
+    for a in (s.get("action_items") or []):
+        if isinstance(a, dict):
+            line = f"{a.get('task','')}"
+            if a.get("owner"): line += f" — {a['owner']}"
+            if a.get("due"):   line += f" (Due: {a['due']})"
+            d.add_paragraph(line, style="List Bullet")
+        else:
+            d.add_paragraph(str(a), style="List Bullet")
+
+    d.add_heading("Decisions", level=1)
+    for dec in (s.get("decisions") or []):
+        d.add_paragraph(dec, style="List Bullet")
+
+    d.add_heading("Sentiment", level=1)
+    d.add_paragraph(s.get("sentiment","Unknown"))
+
+    d.add_heading("Transcript", level=1)
+    d.add_paragraph(note.get("transcript","") or "")
+
+    d.save(bio)
+    bio.seek(0)
+    return bio
+
+@app.route("/notes/<note_id>/download")
+@login_required
+def download_note(note_id):
+    """
+    Download the note as TXT (default) or DOCX (?format=docx).
+    """
+    fmt = (request.args.get("format") or "txt").lower()
+    doc = notes_collection.find_one({"_id": ObjectId(note_id)})
+    if not doc:
+        return "Note not found", 404
+    if doc.get("owner_id") and doc["owner_id"] != session.get("user_id"):
+        return "Forbidden", 403
+
+    if fmt == "docx":
+        bio = _build_docx_from_note({**doc, "_id": str(doc["_id"])})
+        return send_file(
+            bio,
+            as_attachment=True,
+            download_name=f"notes_{doc['_id']}.docx",
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+
+    # TXT fallback
+    s = doc.get("summary", {}) or {}
+    lines = []
+    lines.append("MEETING NOTES")
+    lines.append(f"File: {doc.get('filename','')}")
+    lines.append(f"Language: {doc.get('language','')}")
+    lines.append(f"Created: {doc.get('created_at','')}")
+    lines.append("")
+    lines.append("Executive Summary")
+    lines.append(s.get("executive_summary","") or "")
+    lines.append("")
+    lines.append("Key Points")
+    for p in (s.get("key_points") or []): lines.append(f"- {p}")
+    lines.append("")
+    lines.append("Action Items")
+    for a in (s.get("action_items") or []):
+        if isinstance(a, dict):
+            line = f"- {a.get('task','')}"
+            if a.get("owner"): line += f" — {a['owner']}"
+            if a.get("due"):   line += f" (Due: {a['due']})"
+            lines.append(line)
+        else:
+            lines.append(f"- {a}")
+    lines.append("")
+    lines.append("Decisions")
+    for d in (s.get("decisions") or []): lines.append(f"- {d}")
+    lines.append("")
+    lines.append(f"Sentiment: {s.get('sentiment','Unknown')}")
+    lines.append("")
+    lines.append("Transcript")
+    lines.append(doc.get("transcript","") or "")
+
+    txt_bytes = BytesIO("\n".join(lines).encode("utf-8"))
+    txt_bytes.seek(0)
+    return send_file(
+        txt_bytes,
+        as_attachment=True,
+        download_name=f"notes_{doc['_id']}.txt",
+        mimetype="text/plain; charset=utf-8"
+    )
+
+# ---------------- Translator & Converters (Public) ----------------
 @app.route("/translator", methods=["GET", "POST"])
 def translator():
+    """
+    Public translator page:
+    - Translate raw text
+    - Translate a PDF (OCR-aware)
+    """
     user_input = ""
     translated_text = ""
     target_language = request.form.get("target_lang", "Urdu")
@@ -335,7 +503,7 @@ def translator():
         # PDF translation
         elif "pdf_file" in request.files:
             pdf_file = request.files["pdf_file"]
-            if pdf_file.filename != "":
+            if pdf_file and pdf_file.filename != "":
                 in_name = secure_filename(pdf_file.filename)
                 in_path = os.path.join(app.config["UPLOAD_FOLDER"], in_name)
                 os.makedirs(os.path.dirname(in_path), exist_ok=True)
@@ -509,9 +677,7 @@ def image_to_pdf():
         flash(f"Image to PDF failed: {e}", "error")
         return redirect(url_for("translator"))
 
-# -------------------------------------------------------
-# Main
-# -------------------------------------------------------
+# ---------------- Main ----------------
 if __name__ == "__main__":
-    # Disable reloader on Windows to avoid socket errors with MediaRecorder
+    # Disable reloader on Windows to avoid MediaRecorder issues
     app.run(debug=True, use_reloader=False, host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
